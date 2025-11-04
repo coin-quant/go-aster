@@ -6,7 +6,6 @@ import (
 
 	"github.com/coin-quant/go-aster/v2/common"
 	"github.com/coin-quant/go-aster/v2/common/websocket"
-	"github.com/google/uuid"
 )
 
 type WsAccountService struct {
@@ -172,37 +171,38 @@ func (s *WsAccountService) GetReconnectCount() int64 {
 	return s.c.GetReconnectCount()
 }
 
-func (c *Client) NewWsAccountService(recvWindow ...int64) (*WsAccountService, error) {
-	return NewWsAccountService(c.APIKey, c.SecretKey, recvWindow...)
-}
-
-// GetAccountInfoWs Get account info by websocket like RESTful
-func (c *Client) GetAccountInfoWs(recvWindow ...int64) (*WsAccountV2InfoResponse, error) {
-	service, err := c.NewWsAccountService(recvWindow...)
-	if err != nil {
-		return nil, err
-	}
-	defer service.c.Close()
-
-	response, err := service.SyncGetAccountInfo(uuid.New().String())
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
-}
-
-func (c *Client) GetAccountBalanceWs(recvWindow ...int64) (*WsAccountV2BalanceResponse, error) {
-	service, err := c.NewWsAccountService(recvWindow...)
-	if err != nil {
-		return nil, err
-	}
-	defer service.c.Close()
-
-	response, err := service.SyncGetAccountBalance(uuid.New().String())
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
-}
+//
+//func (c *Client) NewWsAccountService(recvWindow ...int64) (*WsAccountService, error) {
+//	return NewWsAccountService(c.APIKey, c.SecretKey, recvWindow...)
+//}
+//
+//// GetAccountInfoWs Get account info by websocket like RESTful
+//func (c *Client) GetAccountInfoWs(recvWindow ...int64) (*WsAccountV2InfoResponse, error) {
+//	service, err := c.NewWsAccountService(recvWindow...)
+//	if err != nil {
+//		return nil, err
+//	}
+//	defer service.c.Close()
+//
+//	response, err := service.SyncGetAccountInfo(uuid.New().String())
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	return response, nil
+//}
+//
+//func (c *Client) GetAccountBalanceWs(recvWindow ...int64) (*WsAccountV2BalanceResponse, error) {
+//	service, err := c.NewWsAccountService(recvWindow...)
+//	if err != nil {
+//		return nil, err
+//	}
+//	defer service.c.Close()
+//
+//	response, err := service.SyncGetAccountBalance(uuid.New().String())
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	return response, nil
+//}

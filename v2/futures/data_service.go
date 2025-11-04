@@ -27,7 +27,6 @@ func (s *DeliveryPriceService) Do(ctx context.Context, opts ...RequestOption) (r
 		endpoint: "/futures/data/delivery-price",
 	}
 	r.setParam("pair", s.pair)
-
 	data, _, err := s.c.callAPI(ctx, r, opts...)
 	if err != nil {
 		return nil, err

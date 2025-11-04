@@ -146,80 +146,79 @@ func (s *CreateOrderService) GoodTillDate(goodTillDate int64) *CreateOrderServic
 	return s
 }
 
-func (s *CreateOrderService) createOrder(ctx context.Context, endpoint string, opts ...RequestOption) (data []byte, header *http.Header, err error) {
-	r := &request{
-		method:   http.MethodPost,
-		endpoint: endpoint,
-		secType:  secTypeSigned,
+func (s *CreateOrderService) createOrder(ctx context.Context, opts ...RequestOption) (data []byte, err error) {
+	param := map[string]interface{}{
+		"symbol": s.symbol,
+		"side":   s.side,
+		"type":   s.orderType,
 	}
-	m := params{
-		"symbol":           s.symbol,
-		"side":             s.side,
-		"type":             s.orderType,
-		"newOrderRespType": s.newOrderRespType,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/order",
+		"method": http.MethodPost,
+		"params": param,
+	}
+	if s.newOrderRespType != "" {
+		m["newOrderRespType"] = s.newOrderRespType
 	}
 	if s.quantity != "" {
-		m["quantity"] = s.quantity
+		param["quantity"] = s.quantity
 	}
 	if s.positionSide != nil {
-		m["positionSide"] = *s.positionSide
+		param["positionSide"] = *s.positionSide
 	}
 	if s.timeInForce != nil {
-		m["timeInForce"] = *s.timeInForce
+		param["timeInForce"] = *s.timeInForce
 	}
 	if s.reduceOnly != nil {
-		m["reduceOnly"] = *s.reduceOnly
+		param["reduceOnly"] = *s.reduceOnly
 	}
 	if s.price != nil {
-		m["price"] = *s.price
+		param["price"] = *s.price
 	}
 	if s.newClientOrderID != nil {
-		m["newClientOrderId"] = *s.newClientOrderID
-	} else {
-		m["newClientOrderId"] = common.GenerateSwapId()
+		param["newClientOrderId"] = *s.newClientOrderID
 	}
 	if s.stopPrice != nil {
-		m["stopPrice"] = *s.stopPrice
+		param["stopPrice"] = *s.stopPrice
 	}
 	if s.workingType != nil {
-		m["workingType"] = *s.workingType
+		param["workingType"] = *s.workingType
 	}
 	if s.priceProtect != nil {
-		m["priceProtect"] = *s.priceProtect
+		param["priceProtect"] = *s.priceProtect
 	}
 	if s.activationPrice != nil {
-		m["activationPrice"] = *s.activationPrice
+		param["activationPrice"] = *s.activationPrice
 	}
 	if s.callbackRate != nil {
-		m["callbackRate"] = *s.callbackRate
+		param["callbackRate"] = *s.callbackRate
 	}
 	if s.closePosition != nil {
-		m["closePosition"] = *s.closePosition
+		param["closePosition"] = *s.closePosition
 	}
 	if s.selfTradePreventionMode != nil {
-		m["selfTradePreventionMode"] = *s.selfTradePreventionMode
+		param["selfTradePreventionMode"] = *s.selfTradePreventionMode
 	}
 	if s.goodTillDate > 0 && *s.timeInForce == TimeInForceTypeGTD {
-		m["goodTillDate"] = s.goodTillDate
+		param["goodTillDate"] = s.goodTillDate
 	}
-	r.setFormParams(m)
-	data, header, err = s.c.callAPI(ctx, r, opts...)
+	data, err = s.c.call(m, true)
 	if err != nil {
-		return []byte{}, &http.Header{}, err
+		return nil, err
 	}
-	return data, header, nil
+	return data, nil
 }
 
 // Do send request
 func (s *CreateOrderService) Do(ctx context.Context, opts ...RequestOption) (res *CreateOrderResponse, err error) {
-	data, header, err := s.createOrder(ctx, "/fapi/v1/order", opts...)
+	data, err := s.createOrder(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 	res = new(CreateOrderResponse)
 	err = json.Unmarshal(data, res)
-	res.RateLimitOrder10s = header.Get("X-Mbx-Order-Count-10s")
-	res.RateLimitOrder1m = header.Get("X-Mbx-Order-Count-1m")
+	//res.RateLimitOrder10s = header.Get("X-Mbx-Order-Count-10s")
+	//res.RateLimitOrder1m = header.Get("X-Mbx-Order-Count-1m")
 
 	if err != nil {
 		return nil, err
@@ -485,7 +484,7 @@ func (s *GetOpenOrderService) Do(ctx context.Context, opts ...RequestOption) (re
 type GetOrderService struct {
 	c                 *Client
 	symbol            string
-	orderID           *int64
+	orderID           *string
 	origClientOrderID *string
 }
 
@@ -496,7 +495,7 @@ func (s *GetOrderService) Symbol(symbol string) *GetOrderService {
 }
 
 // OrderID set orderID
-func (s *GetOrderService) OrderID(orderID int64) *GetOrderService {
+func (s *GetOrderService) OrderID(orderID string) *GetOrderService {
 	s.orderID = &orderID
 	return s
 }
@@ -509,19 +508,21 @@ func (s *GetOrderService) OrigClientOrderID(origClientOrderID string) *GetOrderS
 
 // Do send request
 func (s *GetOrderService) Do(ctx context.Context, opts ...RequestOption) (res *Order, err error) {
-	r := &request{
-		method:   http.MethodGet,
-		endpoint: "/fapi/v1/order",
-		secType:  secTypeSigned,
+	param := map[string]interface{}{
+		"symbol": s.symbol,
 	}
-	r.setParam("symbol", s.symbol)
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/order",
+		"method": http.MethodGet,
+		"params": param,
+	}
 	if s.orderID != nil {
-		r.setParam("orderId", *s.orderID)
+		param["orderId"] = *s.orderID
 	}
 	if s.origClientOrderID != nil {
-		r.setParam("origClientOrderId", *s.origClientOrderID)
+		param["origClientOrderId"] = *s.origClientOrderID
 	}
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	data, err := s.c.call(m, true)
 	if err != nil {
 		return nil, err
 	}
@@ -640,7 +641,7 @@ func (s *ListOrdersService) Do(ctx context.Context, opts ...RequestOption) (res 
 type CancelOrderService struct {
 	c                 *Client
 	symbol            string
-	orderID           *int64
+	orderID           *string
 	origClientOrderID *string
 }
 
@@ -651,7 +652,7 @@ func (s *CancelOrderService) Symbol(symbol string) *CancelOrderService {
 }
 
 // OrderID set orderID
-func (s *CancelOrderService) OrderID(orderID int64) *CancelOrderService {
+func (s *CancelOrderService) OrderID(orderID string) *CancelOrderService {
 	s.orderID = &orderID
 	return s
 }
@@ -664,19 +665,21 @@ func (s *CancelOrderService) OrigClientOrderID(origClientOrderID string) *Cancel
 
 // Do send request
 func (s *CancelOrderService) Do(ctx context.Context, opts ...RequestOption) (res *CancelOrderResponse, err error) {
-	r := &request{
-		method:   http.MethodDelete,
-		endpoint: "/fapi/v1/order",
-		secType:  secTypeSigned,
+	param := map[string]interface{}{
+		"symbol": s.symbol,
 	}
-	r.setFormParam("symbol", s.symbol)
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/order",
+		"method": http.MethodDelete,
+		"params": param,
+	}
 	if s.orderID != nil {
-		r.setFormParam("orderId", *s.orderID)
+		param["orderId"] = *s.orderID
 	}
 	if s.origClientOrderID != nil {
-		r.setFormParam("origClientOrderId", *s.origClientOrderID)
+		m["origClientOrderId"] = *s.origClientOrderID
 	}
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	data, err := s.c.call(m, true)
 	if err != nil {
 		return nil, err
 	}

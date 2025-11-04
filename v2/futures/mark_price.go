@@ -22,15 +22,16 @@ func (s *PremiumIndexService) Symbol(symbol string) *PremiumIndexService {
 
 // Do send request
 func (s *PremiumIndexService) Do(ctx context.Context, opts ...RequestOption) (res []*PremiumIndex, err error) {
-	r := &request{
-		method:   http.MethodGet,
-		endpoint: "/fapi/v1/premiumIndex",
-		secType:  secTypeNone,
-	}
+	param := map[string]interface{}{}
 	if s.symbol != nil {
-		r.setParam("symbol", *s.symbol)
+		param["symbol"] = *s.symbol
 	}
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/premiumIndex",
+		"method": http.MethodGet,
+		"params": param,
+	}
+	data, err := s.c.call(m, false)
 	data = common.ToJSONList(data)
 	if err != nil {
 		return []*PremiumIndex{}, err
@@ -139,16 +140,15 @@ func (s *GetLeverageBracketService) Symbol(symbol string) *GetLeverageBracketSer
 
 // Do send request
 func (s *GetLeverageBracketService) Do(ctx context.Context, opts ...RequestOption) (res []*LeverageBracket, err error) {
-	r := &request{
-		method:   http.MethodGet,
-		endpoint: "/fapi/v1/leverageBracket",
-		secType:  secTypeSigned,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/leverageBracket",
+		"method": http.MethodGet,
+		"params": map[string]interface{}{},
 	}
-	r.setParam("symbol", s.symbol)
 	if s.symbol != "" {
-		r.setParam("symbol", s.symbol)
+		m["params"] = map[string]interface{}{"symbol": s.symbol}
 	}
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	data, err := s.c.call(m, true)
 	if err != nil {
 		return []*LeverageBracket{}, err
 	}

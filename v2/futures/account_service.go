@@ -52,12 +52,12 @@ type GetAccountService struct {
 
 // Do send request
 func (s *GetAccountService) Do(ctx context.Context, opts ...RequestOption) (res *Account, err error) {
-	r := &request{
-		method:   http.MethodGet,
-		endpoint: "/fapi/v2/account",
-		secType:  secTypeSigned,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/account",
+		"method": http.MethodGet,
+		"params": map[string]interface{}{},
 	}
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	data, err := s.c.call(m, true)
 	if err != nil {
 		return nil, err
 	}

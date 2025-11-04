@@ -12,12 +12,12 @@ type StartUserStreamService struct {
 
 // Do send request
 func (s *StartUserStreamService) Do(ctx context.Context, opts ...RequestOption) (listenKey string, err error) {
-	r := &request{
-		method:   http.MethodPost,
-		endpoint: "/fapi/v1/listenKey",
-		secType:  secTypeSigned,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/listenKey",
+		"method": http.MethodPost,
+		"params": map[string]interface{}{},
 	}
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	data, err := s.c.call(m, true)
 	if err != nil {
 		return "", err
 	}
@@ -43,13 +43,14 @@ func (s *KeepaliveUserStreamService) ListenKey(listenKey string) *KeepaliveUserS
 
 // Do send request
 func (s *KeepaliveUserStreamService) Do(ctx context.Context, opts ...RequestOption) (err error) {
-	r := &request{
-		method:   http.MethodPut,
-		endpoint: "/fapi/v1/listenKey",
-		secType:  secTypeSigned,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/listenKey",
+		"method": http.MethodPost,
+		"params": map[string]interface{}{
+			"listenKey": s.listenKey,
+		},
 	}
-	r.setFormParam("listenKey", s.listenKey)
-	_, _, err = s.c.callAPI(ctx, r, opts...)
+	_, err = s.c.call(m, true)
 	return err
 }
 
@@ -67,12 +68,13 @@ func (s *CloseUserStreamService) ListenKey(listenKey string) *CloseUserStreamSer
 
 // Do send request
 func (s *CloseUserStreamService) Do(ctx context.Context, opts ...RequestOption) (err error) {
-	r := &request{
-		method:   http.MethodDelete,
-		endpoint: "/fapi/v1/listenKey",
-		secType:  secTypeSigned,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/listenKey",
+		"method": http.MethodDelete,
+		"params": map[string]interface{}{
+			"listenKey": s.listenKey,
+		},
 	}
-	r.setFormParam("listenKey", s.listenKey)
-	_, _, err = s.c.callAPI(ctx, r, opts...)
+	_, err = s.c.call(m, true)
 	return err
 }

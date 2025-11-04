@@ -1,21 +1,28 @@
 package futures
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bitly/go-simplejson"
-
 	"github.com/coin-quant/go-aster/v2/common"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	eth "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // SideType define side type of order
@@ -78,7 +85,7 @@ type SelfTradePreventionMode string
 
 // Endpoints
 var (
-	BaseApiMainUrl    = "https://fapi.binance.com"
+	BaseApiMainUrl    = "https://fapi.asterdex.com"
 	BaseApiTestnetUrl = "https://testnet.binancefuture.com"
 )
 
@@ -228,15 +235,20 @@ func getApiEndpoint() string {
 // NewClient initialize an API client instance with API key and secret key.
 // You should always call this function before using this SDK.
 // Services will be created by the form client.NewXXXService().
-func NewClient(apiKey, secretKey string) *Client {
+func NewClient(user, signer, PriKeyHex string) *Client {
 	return &Client{
-		APIKey:     apiKey,
-		SecretKey:  secretKey,
-		KeyType:    common.KeyTypeHmac,
-		BaseURL:    getApiEndpoint(),
-		UserAgent:  "Binance/golang",
-		HTTPClient: http.DefaultClient,
-		Logger:     log.New(os.Stderr, "Binance-golang ", log.LstdFlags),
+		User:      user,
+		Signer:    signer,
+		PriKeyHex: PriKeyHex,
+		//APIKey:    apiKey,
+		//SecretKey: secretKey,
+		//KeyType:   common.KeyTypeHmac,
+		BaseURL:   getApiEndpoint(),
+		UserAgent: "Binance/golang",
+		HTTPClient: &http.Client{
+			Timeout: 15 * time.Second,
+		},
+		Logger: log.New(os.Stderr, "Binance-golang ", log.LstdFlags),
 	}
 }
 
@@ -251,9 +263,9 @@ func NewProxiedClient(apiKey, secretKey, proxyUrl string) *Client {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	return &Client{
-		APIKey:    apiKey,
-		SecretKey: secretKey,
-		KeyType:   common.KeyTypeHmac,
+		//APIKey:    apiKey,
+		//SecretKey: secretKey,
+		//KeyType:   common.KeyTypeHmac,
 		BaseURL:   getApiEndpoint(),
 		UserAgent: "Binance/golang",
 		HTTPClient: &http.Client{
@@ -267,9 +279,13 @@ type doFunc func(req *http.Request) (*http.Response, error)
 
 // Client define API client
 type Client struct {
-	APIKey     string
-	SecretKey  string
-	KeyType    string
+	User      string
+	Signer    string
+	PriKeyHex string
+
+	//APIKey    string
+	//SecretKey string
+	//KeyType    string
 	BaseURL    string
 	UserAgent  string
 	HTTPClient *http.Client
@@ -287,65 +303,65 @@ func (c *Client) debug(format string, v ...interface{}) {
 
 func (c *Client) parseRequest(r *request, opts ...RequestOption) (err error) {
 	// set request options from user
-	for _, opt := range opts {
-		opt(r)
-	}
-	err = r.validate()
-	if err != nil {
-		return err
-	}
-
-	fullURL := fmt.Sprintf("%s%s", c.BaseURL, r.endpoint)
-	if r.recvWindow > 0 {
-		r.setParam(recvWindowKey, r.recvWindow)
-	}
-	if r.secType == secTypeSigned {
-		r.setParam(timestampKey, currentTimestamp()-c.TimeOffset)
-	}
-	queryString := r.query.Encode()
-	body := &bytes.Buffer{}
-	bodyString := r.form.Encode()
-	header := http.Header{}
-	if r.header != nil {
-		header = r.header.Clone()
-	}
-	if bodyString != "" {
-		header.Set("Content-Type", "application/x-www-form-urlencoded")
-		body = bytes.NewBufferString(bodyString)
-	}
-	if r.secType == secTypeAPIKey || r.secType == secTypeSigned {
-		header.Set("X-MBX-APIKEY", c.APIKey)
-	}
-	kt := c.KeyType
-	if kt == "" {
-		kt = common.KeyTypeHmac
-	}
-	sf, err := common.SignFunc(kt)
-	if err != nil {
-		return err
-	}
-	if r.secType == secTypeSigned {
-		raw := fmt.Sprintf("%s%s", queryString, bodyString)
-		sign, err := sf(c.SecretKey, raw)
-		if err != nil {
-			return err
-		}
-		v := url.Values{}
-		v.Set(signatureKey, *sign)
-		if queryString == "" {
-			queryString = v.Encode()
-		} else {
-			queryString = fmt.Sprintf("%s&%s", queryString, v.Encode())
-		}
-	}
-	if queryString != "" {
-		fullURL = fmt.Sprintf("%s?%s", fullURL, queryString)
-	}
-	c.debug("full url: %s, body: %s\n", fullURL, bodyString)
-
-	r.fullURL = fullURL
-	r.header = header
-	r.body = body
+	//for _, opt := range opts {
+	//	opt(r)
+	//}
+	//err = r.validate()
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//fullURL := fmt.Sprintf("%s%s", c.BaseURL, r.endpoint)
+	//if r.recvWindow > 0 {
+	//	r.setParam(recvWindowKey, r.recvWindow)
+	//}
+	//if r.secType == secTypeSigned {
+	//	r.setParam(timestampKey, currentTimestamp()-c.TimeOffset)
+	//}
+	//queryString := r.query.Encode()
+	//body := &bytes.Buffer{}
+	//bodyString := r.form.Encode()
+	//header := http.Header{}
+	//if r.header != nil {
+	//	header = r.header.Clone()
+	//}
+	//if bodyString != "" {
+	//	header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//	body = bytes.NewBufferString(bodyString)
+	//}
+	//if r.secType == secTypeAPIKey || r.secType == secTypeSigned {
+	//	header.Set("X-MBX-APIKEY", c.APIKey)
+	//}
+	//kt := c.KeyType
+	//if kt == "" {
+	//	kt = common.KeyTypeHmac
+	//}
+	//sf, err := common.SignFunc(kt)
+	//if err != nil {
+	//	return err
+	//}
+	//if r.secType == secTypeSigned {
+	//	raw := fmt.Sprintf("%s%s", queryString, bodyString)
+	//	sign, err := sf(c.SecretKey, raw)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	v := url.Values{}
+	//	v.Set(signatureKey, *sign)
+	//	if queryString == "" {
+	//		queryString = v.Encode()
+	//	} else {
+	//		queryString = fmt.Sprintf("%s&%s", queryString, v.Encode())
+	//	}
+	//}
+	//if queryString != "" {
+	//	fullURL = fmt.Sprintf("%s?%s", fullURL, queryString)
+	//}
+	//c.debug("full url: %s, body: %s\n", fullURL, bodyString)
+	//
+	//r.fullURL = fullURL
+	//r.header = header
+	//r.body = body
 	return nil
 }
 
@@ -386,15 +402,15 @@ func (c *Client) callAPI(ctx context.Context, r *request, opts ...RequestOption)
 	c.debug("response status code: %d\n", res.StatusCode)
 
 	if res.StatusCode >= http.StatusBadRequest {
-		apiErr := new(common.APIError)
-		e := json.Unmarshal(data, apiErr)
-		if e != nil {
-			c.debug("failed to unmarshal json: %s\n", e)
-		}
-		if !apiErr.IsValid() {
-			apiErr.Response = data
-		}
-		return nil, &res.Header, apiErr
+		//apiErr := new(common.APIError)
+		//e := json.Unmarshal(data, apiErr)
+		//if e != nil {
+		//	c.debug("failed to unmarshal json: %s\n", e)
+		//}
+		//if !apiErr.IsValid() {
+		//	apiErr.Response = data
+		//}
+		//return nil, &res.Header, apiErr
 	}
 	return data, &res.Header, nil
 }
@@ -760,4 +776,289 @@ func (c *Client) NewGetConvertStatusService() *ConvertStatusService {
 // NewApiTradingStatusService init get api trading status service
 func (c *Client) NewApiTradingStatusService() *ApiTradingStatusService {
 	return &ApiTradingStatusService{c: c}
+}
+
+// sign 将在 params 中添加 timestamp, recvWindow, user, signer, signature
+func (c *Client) sign(params map[string]interface{}, nonce uint64) error {
+	// 添加 recvWindow 和 timestamp (毫秒)
+	params["recvWindow"] = "50000"
+	timestamp := strconv.FormatInt(time.Now().UnixNano()/int64(time.Millisecond), 10)
+	//params["timestamp"] = "1759212310710"
+	params["timestamp"] = timestamp
+
+	// 先做确定性的序列化（递归按 key 排序）
+	trimmed, err := normalizeAndStringify(params)
+	if err != nil {
+		return err
+	}
+	// trimmed 是 string，作为第一个 ABI 参数
+	// 构造 ABI: (string, address, address, uint256)
+	argString := trimmed
+	//fmt.Println(argString)
+	addrUser := eth.HexToAddress(c.User)
+	addrSigner := eth.HexToAddress(c.Signer)
+	nonceBig := new(big.Int).SetUint64(nonce)
+
+	// 定义 abi types
+	tString, err := abi.NewType("string", "", nil)
+	if err != nil {
+		return err
+	}
+	tAddress, err := abi.NewType("address", "", nil)
+	if err != nil {
+		return err
+	}
+	tUint256, err := abi.NewType("uint256", "", nil)
+	if err != nil {
+		return err
+	}
+	arguments := abi.Arguments{
+		{Type: tString},
+		{Type: tAddress},
+		{Type: tAddress},
+		{Type: tUint256},
+	}
+
+	// Pack
+	packed, err := arguments.Pack(argString, addrUser, addrSigner, nonceBig)
+	if err != nil {
+		return fmt.Errorf("abi pack error: %w", err)
+	}
+
+	//fmt.Println(hex.EncodeToString(packed))
+
+	// keccak256
+	hash := crypto.Keccak256(packed)
+
+	//fmt.Println(hex.EncodeToString(hash))
+
+	prefixedMsg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(hash), hash)
+
+	// 2. keccak256 哈希
+	msgHash := crypto.Keccak256Hash([]byte(prefixedMsg))
+	// Load private key
+	privKey, err := crypto.HexToECDSA(strings.TrimPrefix(c.PriKeyHex, "0x"))
+	if err != nil {
+		return fmt.Errorf("invalid private key: %w", err)
+	}
+
+	// Sign the hash (returns 65 bytes: R(32)|S(32)|V(1))
+	sig, err := crypto.Sign(msgHash.Bytes(), privKey)
+	if err != nil {
+		return fmt.Errorf("sign error: %w", err)
+	}
+
+	// crypto.Sign returns v as 0/1 in last byte — convert to 27/28
+	if len(sig) != 65 {
+		return fmt.Errorf("unexpected signature length: %d", len(sig))
+	}
+	sig[64] += 27
+
+	// hex-encode with 0x prefix
+	sigHex := "0x" + hex.EncodeToString(sig)
+
+	// 将 user、signer、signature 插入 params
+	params["user"] = c.User
+	params["signer"] = c.Signer
+	params["signature"] = sigHex
+
+	//把 nonce 也放回 params
+	params["nonce"] = nonce
+
+	//fmt.Println("signature:", hex.EncodeToString(sig))
+
+	return nil
+}
+
+func (c *Client) call(api map[string]interface{}, sign bool) ([]byte, error) {
+	// 复制一份 params，以免修改全局模板
+	params := cloneInterface(api["params"])
+	paramsMap, ok := params.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("params must be map[string]interface{}")
+	}
+	if sign {
+		nonce := genNonce()
+		//fmt.Println("nonce:", nonce)
+		// sign 会修改 paramsMap（加入 user, signer, signature, timestamp, recvWindow）
+		if err := c.sign(paramsMap, nonce); err != nil {
+			return nil, err
+		}
+	}
+	// 发送请求
+	urlPath, _ := api["url"].(string)
+	method, _ := api["method"].(string)
+	fullUrl := strings.TrimRight(c.BaseURL, "/") + urlPath
+	respBody, statusCode, err := c.send(fullUrl, method, paramsMap)
+	if err != nil {
+		return nil, err
+	}
+	//fmt.Printf("HTTP %d response: %s\n", statusCode, respBody)
+	if statusCode >= http.StatusBadRequest {
+		apiErr := new(common.APIError)
+		e := json.Unmarshal(respBody, apiErr)
+		if e != nil {
+			c.debug("failed to unmarshal json: %s\n", e)
+		}
+		if !apiErr.IsValid() {
+			apiErr.Response = respBody
+		}
+		return nil, apiErr
+	}
+	return respBody, err
+}
+
+// send HTTP 请求：POST -> body JSON; GET/DELETE -> params放 querystring
+func (c *Client) send(fullUrl string, method string, params map[string]interface{}) ([]byte, int, error) {
+	method = strings.ToUpper(method)
+	switch method {
+	case "POST":
+		form := url.Values{}
+		for k, v := range params {
+			form.Set(k, fmt.Sprintf("%v", v)) // interface{} -> string
+		}
+		req, err := http.NewRequest("POST", fullUrl, strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		return body, resp.StatusCode, nil
+	case "GET", "DELETE":
+		// 把 params 放到 querystring（递归转成 key=val 的方式；此处做最简单的 flat 化）
+		q := url.Values{}
+		flattenParams("", params, &q)
+		u, _ := url.Parse(fullUrl)
+		u.RawQuery = q.Encode()
+		//fmt.Println(u.String())
+		req, _ := http.NewRequest(method, u.String(), nil)
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		return body, resp.StatusCode, nil
+	default:
+		return nil, 0, fmt.Errorf("unsupported http method: %s", method)
+	}
+}
+
+// flattenParams 将 map 递归展平成 query params
+func flattenParams(prefix string, v interface{}, q *url.Values) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		// 保持 key 排序，确定性
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			nk := k
+			if prefix != "" {
+				nk = prefix + "." + k
+			}
+			flattenParams(nk, val[k], q)
+		}
+	case []interface{}:
+		for i, item := range val {
+			nk := fmt.Sprintf("%s[%d]", prefix, i)
+			flattenParams(nk, item, q)
+		}
+	case string:
+		q.Add(prefix, val)
+	case bool:
+		q.Add(prefix, fmt.Sprintf("%v", val))
+	case float64:
+		// JSON decode 默认数值为 float64
+		q.Add(prefix, fmt.Sprintf("%v", val))
+	case nil:
+		// skip nil
+	default:
+		// 尝试格式化为 string
+		q.Add(prefix, fmt.Sprintf("%v", val))
+	}
+}
+
+// normalizeAndStringify 对 map 做确定性序列化（按 key 排序），返回 string
+func normalizeAndStringify(v interface{}) (string, error) {
+	// 先把 v 变成一个 deterministic structure，然后 json.Marshal
+	norm, err := normalize(v)
+	if err != nil {
+		return "", err
+	}
+	bs, err := json.Marshal(norm)
+	if err != nil {
+		return "", err
+	}
+	return string(bs), nil
+}
+
+// normalize 将 map/array 中的键按字母序排序并递归处理
+func normalize(v interface{}) (interface{}, error) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		//out := make([]interface{}, 0, len(keys))
+		// 为了保证 JSON 有键名，我们重建为 map 并按顺序添加
+		newMap := make(map[string]interface{}, len(keys))
+		for _, k := range keys {
+			nv, err := normalize(val[k])
+			if err != nil {
+				return nil, err
+			}
+			newMap[k] = nv
+		}
+		// 返回按 key 排序的 map（Marshal 时 map 的顺序并不保证，但我们已按 key 插入；若你需要绝对保证，请把结果改为 []kv 的形式）
+		return newMap, nil
+	case map[interface{}]interface{}:
+		// unlikely in JSON-decoded, 但处理一下
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, fmt.Sprint(k))
+		}
+		sort.Strings(keys)
+		newMap := make(map[string]interface{}, len(keys))
+		for _, k := range keys {
+			newMap[k] = val[k]
+		}
+		return normalize(newMap)
+	case []interface{}:
+		out := make([]interface{}, 0, len(val))
+		for _, it := range val {
+			nv, err := normalize(it)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, nv)
+		}
+		return out, nil
+	default:
+		// 基本类型直接返回
+		return val, nil
+	}
+}
+
+// cloneInterface 做浅拷贝（仅用于顶层 params）
+func cloneInterface(v interface{}) interface{} {
+	// 通过 json marshal/unmarshal 做深拷贝（简单可靠）
+	bs, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+	var out interface{}
+	_ = json.Unmarshal(bs, &out)
+	return out
+}
+
+func genNonce() uint64 {
+	micro := time.Now().UnixMicro()
+	return uint64(micro)
 }

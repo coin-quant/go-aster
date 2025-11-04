@@ -67,14 +67,16 @@ func (s *ListPricesService) Symbol(symbol string) *ListPricesService {
 
 // Do send request
 func (s *ListPricesService) Do(ctx context.Context, opts ...RequestOption) (res []*SymbolPrice, err error) {
-	r := &request{
-		method:   http.MethodGet,
-		endpoint: "/fapi/v2/ticker/price",
-	}
+	param := map[string]interface{}{}
 	if s.symbol != nil {
-		r.setParam("symbol", *s.symbol)
+		param["symbol"] = *s.symbol
 	}
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/ticker/price",
+		"method": http.MethodGet,
+		"params": param,
+	}
+	data, err := s.c.call(m, false)
 	if err != nil {
 		return []*SymbolPrice{}, err
 	}
@@ -107,14 +109,16 @@ func (s *ListPriceChangeStatsService) Symbol(symbol string) *ListPriceChangeStat
 
 // Do send request
 func (s *ListPriceChangeStatsService) Do(ctx context.Context, opts ...RequestOption) (res []*PriceChangeStats, err error) {
-	r := &request{
-		method:   http.MethodGet,
-		endpoint: "/fapi/v1/ticker/24hr",
-	}
+	param := map[string]interface{}{}
 	if s.symbol != nil {
-		r.setParam("symbol", *s.symbol)
+		param["symbol"] = *s.symbol
 	}
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/ticker/24hr",
+		"method": http.MethodGet,
+		"params": param,
+	}
+	data, err := s.c.call(m, false)
 	if err != nil {
 		return res, err
 	}

@@ -15,12 +15,12 @@ type ExchangeInfoService struct {
 
 // Do send request
 func (s *ExchangeInfoService) Do(ctx context.Context, opts ...RequestOption) (res *ExchangeInfo, err error) {
-	r := &request{
-		method:   http.MethodGet,
-		endpoint: "/fapi/v1/exchangeInfo",
-		secType:  secTypeNone,
+	m := map[string]interface{}{
+		"url":    "/fapi/v1/exchangeInfo",
+		"method": http.MethodGet,
+		"params": map[string]interface{}{},
 	}
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	data, err := s.c.call(m, false)
 	if err != nil {
 		return nil, err
 	}

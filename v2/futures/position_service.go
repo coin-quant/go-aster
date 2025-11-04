@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 // ChangeLeverageService change user's initial leverage of specific symbol market
 type ChangeLeverageService struct {
 	c        *Client
 	symbol   string
-	leverage int
+	leverage string
 }
 
 // Symbol set symbol
@@ -20,23 +21,22 @@ func (s *ChangeLeverageService) Symbol(symbol string) *ChangeLeverageService {
 }
 
 // Leverage set leverage
-func (s *ChangeLeverageService) Leverage(leverage int) *ChangeLeverageService {
+func (s *ChangeLeverageService) Leverage(leverage string) *ChangeLeverageService {
 	s.leverage = leverage
 	return s
 }
 
 // Do send request
 func (s *ChangeLeverageService) Do(ctx context.Context, opts ...RequestOption) (res *SymbolLeverage, err error) {
-	r := &request{
-		method:   http.MethodPost,
-		endpoint: "/fapi/v1/leverage",
-		secType:  secTypeSigned,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/leverage",
+		"method": http.MethodPost,
+		"params": map[string]interface{}{
+			"symbol":   s.symbol,
+			"leverage": s.leverage,
+		},
 	}
-	r.setFormParams(params{
-		"symbol":   s.symbol,
-		"leverage": s.leverage,
-	})
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	data, err := s.c.call(m, true)
 	if err != nil {
 		return nil, err
 	}
@@ -76,16 +76,15 @@ func (s *ChangeMarginTypeService) MarginType(marginType MarginType) *ChangeMargi
 
 // Do send request
 func (s *ChangeMarginTypeService) Do(ctx context.Context, opts ...RequestOption) (err error) {
-	r := &request{
-		method:   http.MethodPost,
-		endpoint: "/fapi/v1/marginType",
-		secType:  secTypeSigned,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/marginType",
+		"method": http.MethodPost,
+		"params": map[string]interface{}{
+			"symbol":     s.symbol,
+			"marginType": s.marginType,
+		},
 	}
-	r.setFormParams(params{
-		"symbol":     s.symbol,
-		"marginType": s.marginType,
-	})
-	_, _, err = s.c.callAPI(ctx, r, opts...)
+	_, err = s.c.call(m, true)
 	if err != nil {
 		return err
 	}
@@ -163,15 +162,14 @@ func (s *ChangePositionModeService) DualSide(dualSide bool) *ChangePositionModeS
 
 // Do send request
 func (s *ChangePositionModeService) Do(ctx context.Context, opts ...RequestOption) (err error) {
-	r := &request{
-		method:   http.MethodPost,
-		endpoint: "/fapi/v1/positionSide/dual",
-		secType:  secTypeSigned,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/positionSide/dual",
+		"method": http.MethodPost,
+		"params": map[string]interface{}{
+			"dualSidePosition": strconv.FormatBool(s.dualSide),
+		},
 	}
-	r.setFormParams(params{
-		"dualSidePosition": s.dualSide,
-	})
-	_, _, err = s.c.callAPI(ctx, r, opts...)
+	_, err = s.c.call(m, true)
 	if err != nil {
 		return err
 	}
@@ -190,13 +188,12 @@ type PositionMode struct {
 
 // Do send request
 func (s *GetPositionModeService) Do(ctx context.Context, opts ...RequestOption) (res *PositionMode, err error) {
-	r := &request{
-		method:   http.MethodGet,
-		endpoint: "/fapi/v1/positionSide/dual",
-		secType:  secTypeSigned,
+	m := map[string]interface{}{
+		"url":    "/fapi/v3/positionSide/dual",
+		"method": http.MethodGet,
+		"params": map[string]interface{}{},
 	}
-	r.setFormParams(params{})
-	data, _, err := s.c.callAPI(ctx, r, opts...)
+	data, err := s.c.call(m, true)
 	if err != nil {
 		return nil, err
 	}
