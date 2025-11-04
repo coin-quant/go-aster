@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adshao/go-binance/v2/common/websocket"
+	"github.com/coin-quant/go-aster/v2/common/websocket"
 	"github.com/google/uuid"
 	gorilla "github.com/gorilla/websocket"
 )
